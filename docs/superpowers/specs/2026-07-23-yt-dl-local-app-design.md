@@ -71,6 +71,7 @@ yt-dl/
     test_downloader.py
     test_jobs.py
     test_api.py
+    test_integration.py     # @pytest.mark.network, deselected by default
   docs/superpowers/specs/
 ```
 
@@ -178,7 +179,10 @@ One page, no framework, no build step:
 3. Two tabs — **Video** and **Audio**
    - Video: quality select, container select, subtitle language multiselect,
      "include auto-generated" checkbox
-   - Audio: format select, bitrate select
+   - Audio: format select, bitrate select. Selecting
+     **Best (no re-encode)** as the format disables the bitrate select, since
+     the native stream is copied untouched; the API rejects a request that
+     sends a bitrate alongside it.
 4. **Download** button → progress bar fed by `EventSource`
 5. On `done`, the page navigates to `/api/jobs/{id}/file`, which triggers the
    browser save dialog
