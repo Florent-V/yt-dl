@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 #
-# check.sh — Diagnostic : vérifie que tout le nécessaire est installé.
-# Ne modifie rien. Lance simplement : ./check.sh
+# check.sh — Diagnostic. Vérifie ce qui est installé. NE MODIFIE RIEN.
+# Lancez simplement : ./check.sh
 #
 set -uo pipefail
 cd "$(dirname "$0")"
 
-# Couleurs (désactivées si la sortie n'est pas un terminal).
 if [ -t 1 ]; then
   GREEN=$'\033[32m'; RED=$'\033[31m'; YELLOW=$'\033[33m'; BOLD=$'\033[1m'; OFF=$'\033[0m'
 else
@@ -18,62 +17,73 @@ bad()  { printf '  %s✗%s  %s\n'      "$RED"    "$OFF" "$1"; }
 warn() { printf '  %s!%s  %s\n'      "$YELLOW" "$OFF" "$1"; }
 hint() { printf '        %s→ %s%s\n' "$YELLOW" "$1"   "$OFF"; }
 
-problems=0
+missing_system=0   # à installer soi-même (droits admin / outil global)
+missing_app=0      # réparable via ./install.sh
 
-printf '\n%sDiagnostic yt-dl%s\n' "$BOLD" "$OFF"
-printf 'Vérification des outils nécessaires...\n\n'
+printf '\n%sDiagnostic yt-dl%s\n\n' "$BOLD" "$OFF"
 
-# --- Python 3.11+ -----------------------------------------------------------
-# Remarque : si uv est présent, il peut fournir Python lui-même. Python
-# système est donc « recommandé » mais pas strictement obligatoire.
+# ===========================================================================
+printf '%sOutils système%s  (à installer vous-même si absents)\n' "$BOLD" "$OFF"
+# ===========================================================================
+
+# --- ffmpeg : indispensable, installation manuelle (mot de passe admin) -----
+if command -v ffmpeg >/dev/null 2>&1; then
+  ok "ffmpeg (assemble vidéo + audio + sous-titres)"
+else
+  bad "ffmpeg absent — indispensable"
+  hint "Ubuntu/Debian :  sudo apt install ffmpeg"
+  hint "macOS         :  brew install ffmpeg"
+  missing_system=$((missing_system + 1))
+fi
+
+# --- Python 3.11+ : recommandé, mais uv sait en fournir un ------------------
 if command -v python3 >/dev/null 2>&1; then
   version=$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null)
   if python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
-    ok "Python $version (3.11 ou plus récent : parfait)"
+    ok "Python $version"
   else
-    warn "Python $version détecté, mais la version 3.11+ est recommandée"
-    hint "uv pourra installer une version compatible tout seul lors de l'installation"
+    warn "Python $version présent, 3.11+ recommandé"
+    hint "Pas bloquant : uv installera une version compatible pour l'application"
   fi
 else
-  warn "Python n'est pas installé sur le système"
-  hint "uv pourra l'installer tout seul lors de l'installation — pas bloquant"
+  warn "Python système absent"
+  hint "Pas bloquant : uv en installera un pour l'application"
 fi
 
-# --- uv ---------------------------------------------------------------------
+# --- uv : outil global qui construit l'environnement ------------------------
 if command -v uv >/dev/null 2>&1; then
-  ok "uv $(uv --version 2>/dev/null | awk '{print $2}') (gestionnaire de l'application)"
+  ok "uv $(uv --version 2>/dev/null | awk '{print $2}') (construit et gère l'environnement)"
 else
-  bad "uv n'est pas installé  — c'est lui qui installe et lance l'application"
-  hint "Lancez  ./install.sh  : il propose de l'installer pour vous"
-  problems=$((problems + 1))
+  bad "uv absent — construit l'environnement de l'application"
+  hint "./install.sh propose de l'installer pour vous"
+  missing_system=$((missing_system + 1))
 fi
 
-# --- ffmpeg -----------------------------------------------------------------
-if command -v ffmpeg >/dev/null 2>&1; then
-  ok "ffmpeg (assemble la vidéo, l'audio et les sous-titres)"
-else
-  bad "ffmpeg n'est pas installé  — indispensable pour fusionner et convertir"
-  hint "Ubuntu/Debian :  sudo apt install ffmpeg"
-  hint "macOS (Homebrew) :  brew install ffmpeg"
-  problems=$((problems + 1))
-fi
+# ===========================================================================
+printf '\n%sApplication%s  (réparable avec ./install.sh)\n' "$BOLD" "$OFF"
+# ===========================================================================
 
-# --- Dépendances de l'application (le dossier .venv créé par uv) -------------
-if [ -d .venv ]; then
-  ok "Dépendances installées (dossier .venv présent)"
+# --- Environnement virtuel + dépendances Python -----------------------------
+if [ -f .venv/bin/uvicorn ]; then
+  ok "Environnement .venv prêt (dépendances Python installées)"
 else
-  warn "Dépendances pas encore installées"
-  hint "Lancez  ./install.sh  pour les installer"
+  warn "Environnement Python pas encore installé"
+  hint "Lancez  ./install.sh"
+  missing_app=$((missing_app + 1))
 fi
 
 # --- Verdict ----------------------------------------------------------------
 printf '\n'
-if [ "$problems" -eq 0 ]; then
-  printf '%s✓ Tout est prêt.%s Lancez l'\''application avec :  %s./run.sh%s\n\n' \
-    "$GREEN$BOLD" "$OFF" "$BOLD" "$OFF"
-  exit 0
-else
-  printf '%s✗ %d élément(s) manquant(s).%s Lancez  %s./install.sh%s  pour corriger.\n\n' \
-    "$RED$BOLD" "$problems" "$OFF" "$BOLD" "$OFF"
+if [ "$missing_system" -gt 0 ]; then
+  printf '%s✗ Installez d'\''abord les outils système ci-dessus,%s puis lancez  %s./install.sh%s\n\n' \
+    "$RED$BOLD" "$OFF" "$BOLD" "$OFF"
   exit 1
+elif [ "$missing_app" -gt 0 ]; then
+  printf '%s! Outils système OK.%s Lancez  %s./install.sh%s  pour finir.\n\n' \
+    "$YELLOW$BOLD" "$OFF" "$BOLD" "$OFF"
+  exit 1
+else
+  printf '%s✓ Tout est prêt.%s Lancez :  %s./run.sh%s  (ou  %s./run.sh 9000%s  pour un autre port)\n\n' \
+    "$GREEN$BOLD" "$OFF" "$BOLD" "$OFF" "$BOLD" "$OFF"
+  exit 0
 fi

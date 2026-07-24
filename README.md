@@ -22,11 +22,11 @@ Sinon, en une commande :
 
 ## Run
 
-    ./run.sh
+    ./run.sh          # port 8000 par défaut
+    ./run.sh 9000     # port de votre choix
 
-Then open http://127.0.0.1:8000
-
-Set a different port with `PORT=8765 ./run.sh`.
+`run.sh` active l'environnement `.venv` tout seul, puis démarre le serveur.
+Ouvrez ensuite l'adresse affichée (http://127.0.0.1:8000 par défaut).
 
 ## Use
 
