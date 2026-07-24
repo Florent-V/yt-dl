@@ -11,6 +11,13 @@ video at a time, and hands the file to your browser.
 
 ## Setup
 
+Débutant ? Deux scripts font tout pour vous :
+
+    ./check.sh      # diagnostic : vérifie ce qui est installé (ne modifie rien)
+    ./install.sh    # installe uv, crée l'environnement et les dépendances
+
+Sinon, en une commande :
+
     uv sync --extra dev
 
 ## Run
