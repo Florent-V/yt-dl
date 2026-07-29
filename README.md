@@ -61,7 +61,7 @@ débit ne s'applique alors pas et reste désactivé.
 
 ## Tests
 
-    uv run pytest              # rapides, hors-ligne (58 tests)
+    uv run pytest              # rapides, hors-ligne (54 tests)
     uv run pytest -m network   # téléchargements réels
 
 ## Fonctionnement
