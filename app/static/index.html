@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <title>yt-dl</title>
+<meta name="theme-color" content="#12161c">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
   :root {
     --deck:   #12161c;
@@ -74,6 +79,22 @@
     text-transform: uppercase;
     color: var(--muted);
   }
+
+  .user {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 13px;
+  }
+  .user a {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .user a:hover { color: var(--ink); }
 
   /* ---- shared furniture ---- */
 
@@ -319,6 +340,7 @@
     color: var(--muted);
     margin-left: auto;
   }
+  #audio-lang-tracks input { accent-color: var(--audio); }
 
   .note {
     font-size: 12px;
@@ -374,6 +396,10 @@
     <h1 class="wordmark">yt-dl</h1>
     <i class="tally" id="tally" data-live="false" aria-hidden="true"></i>
     <p>local · personal use</p>
+    <span class="user" id="user" hidden>
+      <span id="user-name"></span>
+      <a href="/auth/logout">Sign out</a>
+    </span>
   </header>
 
   <div class="banner" id="banner" role="alert" hidden>
@@ -382,12 +408,12 @@
   </div>
 
   <form class="intake" id="intake">
-    <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=…"
-           aria-label="YouTube URL" autocomplete="off" required>
+    <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=… · Instagram · TikTok"
+           aria-label="Video URL" autocomplete="off" required>
     <button class="btn" id="probe-btn" type="submit">Probe</button>
   </form>
 
-  <p class="label" id="empty">Paste a YouTube link to see what's available.</p>
+  <p class="label" id="empty">Paste a YouTube, Instagram, or TikTok link to see what's available.</p>
 
   <section id="result" hidden>
     <div class="panel">
@@ -426,6 +452,11 @@
           Switched to MKV — it carries subtitle tracks that MP4 converts to a
           format many players ignore. Switch back if you need MP4.
         </p>
+      </div>
+
+      <div class="field" id="audio-lang-field" hidden>
+        <span class="label">Audio language</span>
+        <div class="tracks" id="audio-lang-tracks" role="radiogroup" aria-label="Audio language"></div>
       </div>
 
       <div class="field" id="subs-field">
@@ -488,6 +519,22 @@ let mode = "video";
 let stream = null;
 let mkvNudged = false;
 
+let langNames = null;
+try {
+  langNames = new Intl.DisplayNames(["en"], { type: "language" });
+} catch {
+  langNames = null;
+}
+
+function languageName(code) {
+  if (!langNames) return code;
+  try {
+    return langNames.of(code) || code;
+  } catch {
+    return code;
+  }
+}
+
 /* ---------- helpers ---------- */
 
 function setChannel(name) {
@@ -531,10 +578,15 @@ function rung(group, value, name, note, weight, checked) {
   label.className = "rung";
   label.style.setProperty("--weight", `${weight}%`);
   label.innerHTML = `
-    <input type="radio" name="${group}" value="${value}"${checked ? " checked" : ""}>
+    <input type="radio">
     <i class="rung-mark"></i>
     <span class="rung-name"></span>
     <span class="rung-note"></span>`;
+  // Values may come from the probed site: set as properties, never as markup.
+  const input = label.querySelector("input");
+  input.name = group;
+  input.value = value;
+  input.checked = checked;
   label.querySelector(".rung-name").textContent = name;
   label.querySelector(".rung-note").textContent = note;
   return label;
@@ -591,13 +643,47 @@ function renderTracks(subtitles) {
     for (const track of tracks) {
       const label = document.createElement("label");
       label.className = "track";
-      label.innerHTML = `<input type="checkbox" value="${track.lang}"
-        data-auto="${track.auto}"><span></span><code></code>`;
+      label.innerHTML = `<input type="checkbox"><span></span><code></code>`;
+      const input = label.querySelector("input");
+      input.value = track.lang;
+      input.dataset.auto = String(track.auto === true);
       label.querySelector("span").textContent = track.name;
       label.querySelector("code").textContent = track.lang;
       box.append(label);
     }
   }
+}
+
+function renderAudioLangs(tracks) {
+  const box = $("audio-lang-tracks");
+  box.replaceChildren();
+
+  if (!tracks.length) {
+    $("audio-lang-field").hidden = true;
+    return;
+  }
+  $("audio-lang-field").hidden = false;
+
+  const auto = document.createElement("label");
+  auto.className = "track";
+  auto.innerHTML = `<input type="radio" name="audio_lang_choice" value="auto" checked><span>Automatic</span>`;
+  box.append(auto);
+
+  for (const track of tracks) {
+    const label = document.createElement("label");
+    label.className = "track";
+    label.innerHTML = `<input type="radio" name="audio_lang_choice">
+      <span></span><code></code>`;
+    label.querySelector("input").value = track.lang;
+    label.querySelector("span").textContent = languageName(track.lang);
+    label.querySelector("code").textContent = track.lang;
+    box.append(label);
+  }
+
+  const all = document.createElement("label");
+  all.className = "track";
+  all.innerHTML = `<input type="radio" name="audio_lang_choice" value="all"><span>All languages (multi-track)</span>`;
+  box.append(all);
 }
 
 /* ---------- reading the form ---------- */
@@ -618,7 +704,7 @@ function buildRequest(url) {
 
   const quality = document.querySelector("input[name=quality]:checked");
   const tracks = selectedTracks();
-  return {
+  const request = {
     url,
     mode: "video",
     height: quality ? Number(quality.value) : null,
@@ -626,9 +712,24 @@ function buildRequest(url) {
     subtitle_langs: tracks.map((t) => t.value),
     include_auto: tracks.some((t) => t.dataset.auto === "true"),
   };
+
+  const audioChoice = document.querySelector("input[name=audio_lang_choice]:checked");
+  if (audioChoice && audioChoice.value === "all") {
+    request.all_audio_langs = true;
+  } else if (audioChoice && audioChoice.value !== "auto") {
+    request.audio_lang = audioChoice.value;
+  }
+  return request;
 }
 
 /* ---------- actions ---------- */
+
+// A 401 means the session is gone (expired, or revoked by the SSO server):
+// go back through the login, which returns to this page afterwards.
+function signIn() {
+  window.location.href = "/auth/login";
+  return new Promise(() => {});
+}
 
 async function post(path, body) {
   const response = await fetch(path, {
@@ -636,7 +737,8 @@ async function post(path, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = await response.json();
+  if (response.status === 401) return signIn();
+  const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.detail || "Something went wrong.");
   return data;
 }
@@ -658,6 +760,7 @@ async function probe(event) {
     renderQualities(info.video_qualities);
     renderAudioFormats();
     renderTracks(info.subtitles);
+    renderAudioLangs(info.audio_tracks);
     mkvNudged = false;
     $("mkv-note").hidden = true;
     $("empty").hidden = true;
@@ -714,9 +817,12 @@ function follow(jobId) {
     }
   };
 
-  stream.onerror = () => {
+  stream.onerror = async () => {
     if (stream.readyState === EventSource.CLOSED) {
       finish();
+      // EventSource hides the status code: ask whether the session is still open.
+      const me = await fetch("/api/me").catch(() => null);
+      if (me && me.status === 401) return signIn();
       showError("Lost contact with the server. Check that it is still running.");
     }
   };
@@ -730,7 +836,19 @@ function finish() {
   setChannel(mode);
 }
 
+async function showUser() {
+  const response = await fetch("/api/me").catch(() => null);
+  if (!response) return;  // offline: the cached shell still works
+  if (response.status === 401) return signIn();
+  const { first_name } = await response.json();
+  if (!first_name) return;  // authentication is off
+  $("user-name").textContent = first_name;
+  $("user").hidden = false;
+}
+
 /* ---------- wiring ---------- */
+
+showUser();
 
 $("intake").addEventListener("submit", probe);
 $("download-btn").addEventListener("click", download);
@@ -756,6 +874,14 @@ $("tracks").addEventListener("change", () => {
   $("mkv-note").hidden = false;
 });
 
+// Asking for every audio track only makes sense in MKV; nudge like subtitles do.
+$("audio-lang-tracks").addEventListener("change", (event) => {
+  if (event.target.value !== "all" || mkvNudged) return;
+  mkvNudged = true;
+  document.querySelector("input[name=container][value=mkv]").checked = true;
+  $("mkv-note").hidden = false;
+});
+
 // A bitrate only means something when we are re-encoding.
 $("audio-ladder").addEventListener("change", (event) => {
   const transcoding = event.target.value !== "best";
@@ -763,6 +889,23 @@ $("audio-ladder").addEventListener("change", (event) => {
     input.disabled = !transcoding;
   }
 });
+
+// Installed as a PWA, the app shows up in the system "Share" menu; the shared
+// link arrives as ?url= or, on most Android apps, inside ?text=.
+(function acceptSharedLink() {
+  const params = new URLSearchParams(window.location.search);
+  const shared = [params.get("url"), params.get("text")]
+    .map((value) => (value || "").match(/https?:\/\/\S+/))
+    .find(Boolean);
+  if (!shared) return;
+  history.replaceState(null, "", "/");
+  $("url").value = shared[0];
+  $("intake").requestSubmit();
+})();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
 </script>
 </body>
 </html>

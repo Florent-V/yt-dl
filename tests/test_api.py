@@ -146,3 +146,57 @@ def test_index_page_is_served():
     response = client.get("/")
     assert response.status_code == 200
     assert "yt-dl" in response.text
+
+
+def test_pwa_files_served_from_root():
+    manifest = client.get("/manifest.webmanifest")
+    assert manifest.status_code == 200
+    assert manifest.json()["start_url"] == "/"
+
+    worker = client.get("/sw.js")
+    assert worker.status_code == 200
+    assert "javascript" in worker.headers["content-type"]
+
+    assert client.get("/icon-512.png").headers["content-type"] == "image/png"
+    assert client.get("/favicon.ico").headers["content-type"] == "image/x-icon"
+
+
+def test_manifest_icons_are_served():
+    for icon in client.get("/manifest.webmanifest").json()["icons"]:
+        response = client.get(icon["src"])
+        assert response.status_code == 200
+        assert response.headers["content-type"] == icon["type"]
+
+
+def test_unknown_root_file_is_404():
+    assert client.get("/main.py").status_code == 404
+
+
+def test_security_headers_are_set():
+    headers = client.get("/").headers
+    assert "frame-ancestors 'none'" in headers["content-security-policy"]
+    assert "'sha256-" in headers["content-security-policy"]
+    assert headers["x-content-type-options"] == "nosniff"
+    assert client.get("/api/health").headers["cache-control"] == "no-store"
+
+
+def test_too_many_active_jobs_is_429(monkeypatch):
+    monkeypatch.setattr("app.main.MAX_ACTIVE_JOBS", 1)
+    monkeypatch.setattr("app.main.worker.start", lambda *a: None)
+    body = {"url": "https://youtu.be/x", "mode": "audio"}
+    assert client.post("/api/jobs", json=body).status_code == 200
+    assert client.post("/api/jobs", json=body).status_code == 429
+
+
+def test_overlong_url_is_rejected():
+    assert client.post("/api/probe", json={"url": "https://x/" + "a" * 3000}).status_code == 422
+
+
+def test_auth_required_without_config_refuses_to_start(monkeypatch):
+    from app import auth
+    from app.main import check_auth
+
+    monkeypatch.setenv("REQUIRE_AUTH", "1")
+    monkeypatch.setattr(auth, "CONFIG", None)
+    with pytest.raises(RuntimeError):
+        check_auth()

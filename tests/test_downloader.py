@@ -85,6 +85,20 @@ def test_hooks_are_wired_when_given():
     assert opts["postprocessor_hooks"] == [pp_hook]
 
 
+def test_all_audio_langs_uses_mergeall_and_sets_multistream_flag():
+    opts = build_opts(Choices(mode="video", height=1080, all_audio_langs=True), OUT)
+    assert opts["format"] == "bv*[height<=1080]+mergeall[vcodec=none]/b[height<=1080]"
+    assert opts["allow_multiple_audio_streams"] is True
+
+
+def test_single_audio_lang_filters_then_falls_back():
+    opts = build_opts(Choices(mode="video", height=720, audio_lang="fr"), OUT)
+    assert opts["format"] == (
+        "bv*[height<=720]+ba[language=fr]/bv*[height<=720]+ba/b[height<=720]"
+    )
+    assert "allow_multiple_audio_streams" not in opts
+
+
 def test_default_container_prefers_mkv_with_subtitles():
     assert default_container(has_subtitles=True) == "mkv"
     assert default_container(has_subtitles=False) == "mp4"
@@ -99,6 +113,7 @@ def test_default_container_prefers_mkv_with_subtitles():
         Choices(mode="audio", audio_format="wav"),
         Choices(mode="audio", audio_format="mp3", bitrate="999"),
         Choices(mode="audio", audio_format="best", bitrate="320"),
+        Choices(mode="video", audio_lang="en", all_audio_langs=True),
     ],
 )
 def test_validate_rejects_bad_input(choices):
@@ -110,3 +125,20 @@ def test_validate_accepts_good_input():
     validate(Choices(mode="video", height=1080, container="mkv"))
     validate(Choices(mode="audio", audio_format="opus", bitrate="192"))
     validate(Choices(mode="audio", audio_format="best"))
+
+
+@pytest.mark.parametrize("field,value", [
+    ("audio_lang", "en]+bv*[height>0"),
+    ("audio_lang", "fr,de"),
+    ("height", 100000),
+    ("subtitle_langs", ["en", "all,-live_chat"]),
+    ("subtitle_langs", [f"l{i}" for i in range(50)]),
+])
+def test_validate_rejects_injected_values(field, value):
+    with pytest.raises(InvalidChoices):
+        validate(Choices(mode="video", **{field: value}))
+
+
+def test_generic_extractor_is_disabled():
+    opts = build_opts(Choices(mode="audio"), Path("/tmp/x"))
+    assert "-generic" in opts["allowed_extractors"]

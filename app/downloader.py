@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -12,6 +14,17 @@ AUDIO_CODECS = ("mp3", "m4a", "opus")
 AUDIO_FORMATS = ("best",) + AUDIO_CODECS
 BITRATES = ("320", "256", "192", "128")
 CONTAINERS = ("mp4", "mkv")
+MAX_HEIGHT = 4320
+MAX_SUBTITLES = 20
+# Language codes go into yt-dlp format selectors and subtitle patterns:
+# anything beyond plain codes (en, pt-BR, zh-Hans, live_chat) is refused.
+LANG_RE = re.compile(r"[A-Za-z0-9_-]{1,35}")
+
+# Only sites yt-dlp knows: the "generic" extractor would fetch any URL from
+# the server, internal network included (SSRF). YTDL_ALLOW_GENERIC=1 lifts it.
+ALLOWED_EXTRACTORS = (
+    ["default"] if os.environ.get("YTDL_ALLOW_GENERIC") == "1" else ["default", "-generic"]
+)
 
 Hook = Callable[[dict[str, Any]], None]
 
@@ -35,6 +48,8 @@ class Choices:
     include_auto: bool = False
     audio_format: str = "best"
     bitrate: str | None = None
+    audio_lang: str | None = None
+    all_audio_langs: bool = False
 
 
 def default_container(has_subtitles: bool) -> str:
@@ -49,8 +64,19 @@ def validate(choices: Choices) -> None:
     if choices.mode == "video":
         if choices.container not in CONTAINERS:
             raise InvalidChoices(f"Unknown container: {choices.container!r}")
-        if choices.height is not None and choices.height <= 0:
+        if choices.height is not None and not 0 < choices.height <= MAX_HEIGHT:
             raise InvalidChoices("Height must be a positive number.")
+        if choices.audio_lang is not None and not LANG_RE.fullmatch(choices.audio_lang):
+            raise InvalidChoices(f"Invalid audio language: {choices.audio_lang!r}")
+        if len(choices.subtitle_langs) > MAX_SUBTITLES:
+            raise InvalidChoices(f"At most {MAX_SUBTITLES} subtitle tracks.")
+        for lang in choices.subtitle_langs:
+            if not LANG_RE.fullmatch(lang):
+                raise InvalidChoices(f"Invalid subtitle language: {lang!r}")
+        if choices.audio_lang and choices.all_audio_langs:
+            raise InvalidChoices(
+                "Choose a single audio language or all of them, not both."
+            )
         return
 
     if choices.audio_format not in AUDIO_FORMATS:
@@ -80,7 +106,11 @@ def build_opts(
         "retries": 3,
         "fragment_retries": 10,
         "windowsfilenames": True,
+        "allowed_extractors": ALLOWED_EXTRACTORS,
     }
+    max_size = os.environ.get("MAX_FILESIZE")  # e.g. 2G, 500M
+    if max_size:
+        opts["max_filesize"] = yt_dlp.parse_bytes(max_size)
     if hook is not None:
         opts["progress_hooks"] = [hook]
     if pp_hook is not None:
@@ -88,9 +118,18 @@ def build_opts(
 
     if choices.mode == "video":
         height = choices.height
-        opts["format"] = (
-            f"bv*[height<={height}]+ba/b[height<={height}]" if height else "bv*+ba/b"
-        )
+        base_video = f"bv*[height<={height}]" if height else "bv*"
+        base_best = f"b[height<={height}]" if height else "b"
+        if choices.all_audio_langs:
+            opts["format"] = f"{base_video}+mergeall[vcodec=none]/{base_best}"
+            opts["allow_multiple_audio_streams"] = True
+        elif choices.audio_lang:
+            lang = choices.audio_lang
+            opts["format"] = (
+                f"{base_video}+ba[language={lang}]/{base_video}+ba/{base_best}"
+            )
+        else:
+            opts["format"] = f"{base_video}+ba/{base_best}"
         opts["merge_output_format"] = choices.container
         if choices.subtitle_langs:
             opts["writesubtitles"] = True
