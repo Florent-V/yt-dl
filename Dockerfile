@@ -6,7 +6,7 @@
 ARG PYTHON_VERSION=3.12
 
 # --- 1. Dépendances Python, figées par uv.lock -------------------------------
-FROM ghcr.io/astral-sh/uv:0.10 AS uv
+FROM ghcr.io/astral-sh/uv:0.13 AS uv
 FROM python:${PYTHON_VERSION}-slim-trixie AS builder
 
 COPY --from=uv /uv /usr/local/bin/uv
