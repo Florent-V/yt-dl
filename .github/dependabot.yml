@@ -1,0 +1,26 @@
+# Mises à jour automatiques proposées en PR (la CI les valide avant merge).
+version: 2
+updates:
+  # Actions épinglées par SHA : met à jour le SHA et le commentaire de version
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Dépendances Python (uv.lock). yt-dlp casse souvent côté YouTube : à suivre de près.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      yt-dlp:
+        patterns: ["yt-dlp", "yt-dlp-ejs"]
+
+  # Images de base du Dockerfile (python slim, uv)
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
