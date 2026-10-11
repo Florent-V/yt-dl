@@ -1,0 +1,60 @@
+# yt-dl derrière le serveur OAuth2, en Docker.  Le plus simple : make help
+#
+#   Configuration : .env.docker (copie de .env.docker.dist)
+#   Secrets       : secrets/oauth_client_secret, secrets/oauth-public.pem (make secrets)
+services:
+  yt-dl:
+    build:
+      context: .
+      args:
+        APP_UID: ${APP_UID:-10001}
+        APP_GID: ${APP_GID:-10001}
+    image: ${IMAGE_NAME:-yt-dl}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env.docker
+    environment:
+      OAUTH_CLIENT_SECRET_FILE: /run/secrets/oauth_client_secret
+      OAUTH_PUBLIC_KEY_FILE: /run/secrets/oauth_public_key
+    secrets:
+      - oauth_client_secret
+      - oauth_public_key
+    ports:
+      # Uniquement sur la machine : sans le préfixe d'IP, Docker ouvre le port
+      # à tout le réseau en contournant le pare-feu (UFW). HTTPS = reverse proxy de l'hôte.
+      - "${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8765}:8765"
+    volumes:
+      - ytdl_data:/data          # sessions SQLite + fichiers en cours de téléchargement
+    tmpfs:
+      - /tmp:size=256m,mode=1777 # caches deno / yt-dlp (le reste du système est en lecture seule)
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: ${MEM_LIMIT:-2g}
+    cpus: ${CPUS:-2}
+    networks:
+      default:
+      oauth:
+        # Le serveur OAuth joint le back-channel logout à http://yt-dl:8765
+        aliases: [yt-dl]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  oauth:
+    # Réseau du serveur OAuth2 (appels /token et /api/userinfo, back-channel logout)
+    name: ${OAUTH_NETWORK:-oauth-serveur_default}
+    external: true
+
+secrets:
+  oauth_client_secret:
+    file: ./secrets/oauth_client_secret
+  oauth_public_key:
+    file: ./secrets/oauth-public.pem
+
+volumes:
+  ytdl_data:

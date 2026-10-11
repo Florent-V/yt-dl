@@ -6,11 +6,16 @@ from typing import Any
 
 import yt_dlp
 
+from app.downloader import ALLOWED_EXTRACTORS
+
 PROBE_OPTS = {
+    "allowed_extractors": ALLOWED_EXTRACTORS,
     "quiet": True,
     "no_warnings": True,
     "noplaylist": True,
     "skip_download": True,
+    # A playlist URL only needs its first video, not thousands of lookups.
+    "playlist_items": "1",
 }
 
 
@@ -26,7 +31,7 @@ def probe(url: str) -> dict[str, Any]:
     except yt_dlp.utils.DownloadError as exc:
         raise ProbeError(_clean(str(exc))) from exc
     except Exception as exc:  # network stack, parsing, anything else
-        raise ProbeError(str(exc)) from exc
+        raise ProbeError("Could not read this URL.") from exc
 
     if info is None:
         raise ProbeError("No video found at that URL.")
@@ -47,6 +52,7 @@ def summarize(info: dict[str, Any]) -> dict[str, Any]:
         "thumbnail": info.get("thumbnail") or "",
         "video_qualities": _qualities(info.get("formats") or []),
         "subtitles": _subtitles(info),
+        "audio_tracks": _audio_tracks(info.get("formats") or []),
     }
 
 
@@ -91,6 +97,30 @@ def _track_name(tracks: list[dict[str, Any]], lang: str) -> str:
         if track.get("name"):
             return str(track["name"])
     return lang
+
+
+def _audio_tracks(formats: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Distinct audio languages available, when a video ships more than one."""
+    best: dict[str, dict[str, Any]] = {}
+    for fmt in formats:
+        if fmt.get("vcodec") not in (None, "none"):
+            continue
+        if fmt.get("acodec") in (None, "none"):
+            continue
+        lang = fmt.get("language")
+        if not lang:
+            continue
+        preference = fmt.get("language_preference") or 0
+        current = best.get(lang)
+        if current is None or preference > current["_preference"]:
+            best[lang] = {"lang": lang, "_preference": preference}
+
+    if len(best) < 2:
+        return []
+    tracks = sorted(best.values(), key=lambda t: t["_preference"], reverse=True)
+    for track in tracks:
+        del track["_preference"]
+    return tracks
 
 
 def _clean(message: str) -> str:

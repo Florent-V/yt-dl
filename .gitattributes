@@ -1,0 +1,10 @@
+# Text files: LF in the repository and in the working tree
+* text=auto eol=lf
+
+# Binary files: never convert line endings, never diff/merge as text
+*.png  binary
+*.ico  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.gif  binary

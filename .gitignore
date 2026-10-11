@@ -3,3 +3,8 @@ __pycache__/
 .venv/
 .pytest_cache/
 downloads/
+.env
+var/
+.env.docker
+secrets/
+.idea/

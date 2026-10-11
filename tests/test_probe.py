@@ -18,6 +18,27 @@ INFO = {
     "automatic_captions": {"en": [{"name": "English (auto)"}], "de": [{}]},
 }
 
+MULTI_AUDIO_INFO = {
+    **INFO,
+    "formats": INFO["formats"]
+    + [
+        {
+            "height": None,
+            "vcodec": "none",
+            "acodec": "opus",
+            "language": "en",
+            "language_preference": 10,
+        },
+        {
+            "height": None,
+            "vcodec": "none",
+            "acodec": "opus",
+            "language": "es",
+            "language_preference": -1,
+        },
+    ],
+}
+
 
 def test_summarize_extracts_metadata():
     result = summarize(INFO)
@@ -62,6 +83,16 @@ def test_missing_fields_get_safe_defaults():
     assert result["duration"] == 0
     assert result["video_qualities"] == []
     assert result["subtitles"] == []
+    assert result["audio_tracks"] == []
+
+
+def test_audio_tracks_empty_when_video_has_a_single_language():
+    assert summarize(INFO)["audio_tracks"] == []
+
+
+def test_audio_tracks_lists_distinct_languages_original_first():
+    tracks = summarize(MULTI_AUDIO_INFO)["audio_tracks"]
+    assert [t["lang"] for t in tracks] == ["en", "es"]
 
 
 def test_probe_wraps_download_error(monkeypatch):

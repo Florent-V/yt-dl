@@ -1,6 +1,6 @@
 import threading
 
-from app.jobs import TTL_SECONDS, JobRegistry
+from app.jobs import MAX_RUNNING_SECONDS, TTL_SECONDS, JobRegistry
 
 
 def test_create_returns_job_with_temp_dir():
@@ -74,6 +74,7 @@ def test_sweep_removes_jobs_past_the_ttl():
     old = registry.create()
     fresh = registry.create()
     old.created_at -= TTL_SECONDS + 1
+    old.status = "done"
     removed = registry.sweep()
     assert removed == [old.id]
     assert registry.get(old.id) is None
@@ -98,3 +99,13 @@ def test_registry_is_thread_safe():
     assert len({job.id for job in jobs}) == 20
     for job in jobs:
         registry.remove(job.id)
+
+
+def test_sweep_spares_a_download_still_running():
+    registry = JobRegistry()
+    job = registry.create()
+    job.status = "running"
+    job.created_at -= TTL_SECONDS + 1
+    assert registry.sweep() == []
+    job.created_at -= MAX_RUNNING_SECONDS
+    assert registry.sweep() == [job.id]

@@ -6,6 +6,9 @@
 #     ./run.sh            → port 8000 (par défaut)
 #     ./run.sh 9000       → port 9000
 #     PORT=9000 ./run.sh  → port 9000 (autre façon)
+#     HOST=0.0.0.0 ./run.sh → écoute sur toutes les interfaces (défaut 127.0.0.1)
+#
+# Si un fichier .env existe, il est chargé (configuration OAuth2, voir .env.example).
 #
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -16,6 +19,15 @@ else
   RED=''; YELLOW=''; BOLD=''; OFF=''
 fi
 die() { printf '\n%s✗ %s%s\n\n' "$RED$BOLD" "$1" "$OFF"; exit 1; }
+
+# --- Configuration locale (.env), sans écraser l'environnement déjà défini --
+if [ -f .env ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in ''|'#'*) continue ;; esac
+    key="${line%%=*}"
+    [ -z "${!key+x}" ] && export "$line"
+  done < .env
+fi
 
 # --- Port : 1er argument, sinon variable PORT, sinon 8000 -------------------
 PORT="${1:-${PORT:-8000}}"
@@ -35,8 +47,13 @@ source .venv/bin/activate
 command -v uvicorn >/dev/null 2>&1 || die "uvicorn absent de l'environnement. Relancez :  ./install.sh"
 
 printf '\n%s▸ Serveur yt-dl%s\n' "$BOLD" "$OFF"
-printf '  Ouvrez dans votre navigateur :  %shttp://127.0.0.1:%s%s\n' "$BOLD" "$PORT" "$OFF"
+HOST="${HOST:-127.0.0.1}"
+printf '  Ouvrez dans votre navigateur :  %s%s%s\n' "$BOLD" "${APP_URL:-http://127.0.0.1:$PORT}" "$OFF"
+if [ -n "${OAUTH_SERVER_URL:-}" ]; then
+  printf '  Connexion via :                 %s\n' "$OAUTH_SERVER_URL"
+fi
 printf '  Pour arrêter : %sCtrl+C%s\n\n' "$YELLOW" "$OFF"
 
 # exec : le serveur remplace ce script (Ctrl+C l'arrête proprement).
-exec uvicorn app.main:app --host 127.0.0.1 --port "$PORT"
+# Un seul process : jobs en mémoire (app/jobs.py).
+exec uvicorn app.main:app --host "$HOST" --port "$PORT" --proxy-headers
