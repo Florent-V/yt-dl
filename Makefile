@@ -13,11 +13,12 @@ export HTTP_PORT APP_UID APP_GID
 COMPOSE  = docker compose
 # Pas de pseudo-terminal hors d'un terminal (CI, cron, redirection)
 TTY     := $(shell [ -t 0 ] || echo -T)
-SECRETS  = secrets/oauth_client_secret secrets/oauth-public.pem
+# Chemin de la clé publique : celui de .env (OAUTH_PUBLIC_KEY_FILE), sinon le défaut
+PUBLIC_KEY := $(or $(shell sed -n 's/^OAUTH_PUBLIC_KEY_FILE=//p' .env 2>/dev/null),var/oauth-public.pem)
 
 .DEFAULT_GOAL := help
 .PHONY: help install run test test-network audit lock-upgrade \
-        init secret public-key prod-public-key check build up down restart logs ps sh health clean
+        init public-key prod-public-key check build up down restart logs ps sh health clean
 
 ## —— Aide ————————————————————————————————————————————————————————————————
 help: ## Affiche cette aide
@@ -46,31 +47,27 @@ lock-upgrade: ## Met à jour yt-dlp (casse souvent côté YouTube) dans uv.lock
 	uv lock --upgrade-package yt-dlp --upgrade-package yt-dlp-ejs
 	uv sync --frozen --extra dev
 
-## —— Docker : préparation —————————————————————————————————————————————————
-init: ## Crée .env.docker et le dossier secrets/ (à compléter ensuite)
-	@test -f .env.docker || { cp .env.docker.dist .env.docker; echo "→ .env.docker créé : à compléter"; }
-	@mkdir -p secrets && chmod 700 secrets
-
-secret: init ## Enregistre le secret du client OAuth (saisie masquée)
-	@read -rsp "Secret du client OAuth : " s && echo \
-	  && umask 077 && printf '%s' "$$s" > secrets/oauth_client_secret \
-	  && echo "→ secrets/oauth_client_secret écrit (600)"
+## —— Configuration (local et Docker) ——————————————————————————————————————
+init: ## Crée .env depuis .env.example (à compléter ensuite)
+	@test -f .env || { cp .env.example .env && chmod 600 .env && echo "→ .env créé : à compléter"; }
+	@mkdir -p var
 
 public-key: init ## Récupère la clé publique du serveur OAuth de dev (OAUTH_DIR)
-	@$(MAKE) -s -C $(OAUTH_DIR) public-key > secrets/oauth-public.pem.tmp \
-	  && mv secrets/oauth-public.pem.tmp secrets/oauth-public.pem \
-	  && echo "→ secrets/oauth-public.pem écrit" \
-	  || { rm -f secrets/oauth-public.pem.tmp; echo "✗ échec (prod : make prod-public-key)"; exit 1; }
+	@$(MAKE) -s -C $(OAUTH_DIR) public-key > $(PUBLIC_KEY).tmp \
+	  && mv $(PUBLIC_KEY).tmp $(PUBLIC_KEY) \
+	  && echo "→ $(PUBLIC_KEY) écrit" \
+	  || { rm -f $(PUBLIC_KEY).tmp; echo "✗ échec (prod : make prod-public-key)"; exit 1; }
 
 prod-public-key: init ## Récupère la clé publique du serveur OAuth de prod (PROD_OAUTH_DIR)
-	@$(MAKE) -s -C $(PROD_OAUTH_DIR) prod-public-key > secrets/oauth-public.pem.tmp \
-	  && mv secrets/oauth-public.pem.tmp secrets/oauth-public.pem \
-	  && echo "→ secrets/oauth-public.pem écrit" \
-	  || { rm -f secrets/oauth-public.pem.tmp; echo "✗ échec : serveur OAuth démarré dans $(PROD_OAUTH_DIR) ?"; exit 1; }
+	@$(MAKE) -s -C $(PROD_OAUTH_DIR) prod-public-key > $(PUBLIC_KEY).tmp \
+	  && mv $(PUBLIC_KEY).tmp $(PUBLIC_KEY) \
+	  && echo "→ $(PUBLIC_KEY) écrit" \
+	  || { rm -f $(PUBLIC_KEY).tmp; echo "✗ échec : serveur OAuth démarré dans $(PROD_OAUTH_DIR) ?"; exit 1; }
 
-check: ## Vérifie la configuration (fichiers, secrets, compose)
-	@test -f .env.docker || { echo "✗ .env.docker absent : make init"; exit 1; }
-	@for f in $(SECRETS); do test -s $$f || { echo "✗ $$f absent : make secret / make public-key"; exit 1; }; done
+check: ## Vérifie la configuration Docker (.env, clé publique, compose)
+	@test -f .env || { echo "✗ .env absent : make init"; exit 1; }
+	@grep -Eq '^OAUTH_CLIENT_SECRET=.+' .env || { echo "✗ OAUTH_CLIENT_SECRET vide dans .env"; exit 1; }
+	@test -s $(PUBLIC_KEY) || { echo "✗ $(PUBLIC_KEY) absent : make public-key / make prod-public-key"; exit 1; }
 	@$(COMPOSE) config --quiet && echo "✓ configuration valide"
 
 ## —— Docker : exploitation ————————————————————————————————————————————————

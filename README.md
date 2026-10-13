@@ -44,13 +44,14 @@ Pour arrêter le serveur : `Ctrl+C`.
 ## Connexion par le serveur OAuth2 (optionnel)
 
 Sans configuration, l'application est ouverte (usage local). Pour la protéger
-par le serveur SSO, copiez `.env.example` en `.env` et complétez-le ; `run.sh`
-le charge au démarrage.
+par le serveur SSO, créez `.env` (`make init`, copie de `.env.example`) et
+complétez-le. C'est le seul fichier de configuration, lu tel quel par `run.sh`
+et par Docker (`make up`).
 
 1. Déclarer l'application sur le serveur (redirect URI `APP_URL/auth/callback`,
    back-channel logout `APP_URL/auth/backchannel-logout`) et noter le secret.
-2. Récupérer la clé publique : `make public-key > var/oauth-public.pem`
-   (dans le dépôt du serveur ; `make prod-public-key` en production).
+2. Récupérer la clé publique : `make public-key` (`make prod-public-key` en
+   production) écrit `var/oauth-public.pem`.
 3. Donner l'accès aux utilisateurs (`make grant email=… app=…`).
 
 L'application suit le modèle BFF du serveur : le navigateur n'a qu'un cookie de
@@ -66,26 +67,39 @@ joigne la route de back-channel en local : `HOST=0.0.0.0 ./run.sh 8765`.
 
 Image de production : Python 3.12 slim, ffmpeg, dépendances figées par
 `uv.lock` (deno inclus, nécessaire à yt-dlp pour YouTube), un seul process
-uvicorn, utilisateur non-root. Le conteneur rejoint le réseau Docker du
-serveur OAuth (`oauth-serveur_default` par défaut, celui du dev). En prod
-(serveur OAuth dans `/var/www/vauban`), c'est `vauban_default` : le donner dans
-`.env` (`OAUTH_NETWORK=vauban_default`)
-ou dans le shell : Compose lit cette variable pour interpréter `compose.yaml`,
-pas dans `.env.docker`.
+uvicorn, utilisateur non-root. Même `.env` que sans Docker ; `compose.yaml`
+ne fixe que ce qui tient au conteneur (chemins sous `/data` et `/run/secrets`).
 
-    make init         # crée .env.docker (à compléter) et secrets/
-    make secret       # secret du client OAuth (saisie masquée) → secrets/oauth_client_secret
-    make public-key   # clé publique du serveur OAuth de dev → secrets/oauth-public.pem
-                      #   (prod : make prod-public-key, serveur OAuth dans /var/www/vauban)
+    make init         # crée .env (à compléter)
+    make public-key   # clé publique du serveur OAuth de dev → var/oauth-public.pem
+                      #   (prod : make prod-public-key si le serveur OAuth est sur la même machine,
+                      #    sinon copier sa clé publique dans var/oauth-public.pem)
     make up           # construit et démarre → http://127.0.0.1:8765
     make logs | make ps | make down
 
-Côté serveur OAuth, l'URI de back-channel logout devient
-`http://yt-dl:8765/auth/backchannel-logout` (alias réseau du conteneur).
-`OAUTH_SERVER_URL` est l'adresse vue par le navigateur ; `OAUTH_INTERNAL_URL`
-(`http://php:8080`) celle utilisée par le conteneur pour `/token` et `/api/userinfo`.
+Le serveur OAuth peut tourner sur une autre machine : aucun réseau Docker
+partagé. yt-dl le joint par `OAUTH_SERVER_URL` (`/token`, `/api/userinfo`), et
+le serveur OAuth joint yt-dl par l'URI de back-channel déclarée chez lui,
+`APP_URL/auth/backchannel-logout`. Les deux URL doivent donc être joignables
+dans les deux sens.
+
+En dev, avec le serveur OAuth en Docker sur la même machine, `localhost:8080`
+n'est pas joignable depuis le conteneur (`localhost` y désigne le conteneur
+lui-même). Le `.env` de dev ajoute donc `compose.dev.yaml` :
+
+    COMPOSE_FILE=compose.yaml:compose.dev.yaml
+
+yt-dl rejoint alors le réseau Docker du serveur OAuth de dev
+(`oauth-serveur_default`) et l'appelle à `http://php:8080` ; le client OAuth de
+dev déclare le back-channel `http://yt-dl:8765/auth/backchannel-logout`. Le
+`.env` de prod n'a pas cette ligne. Sans Docker (`./run.sh`), le back-channel
+du client de dev est `http://host.docker.internal:8765/auth/backchannel-logout`
+(avec `HOST=0.0.0.0`).
 
 `make help` liste toutes les commandes (local et Docker).
+
+Procédures pas à pas : [mise en production](docs/mise-en-production.md),
+[mise à jour](docs/mise-a-jour.md).
 
 ### Sécurité du déploiement
 
@@ -95,9 +109,10 @@ Côté serveur OAuth, l'URI de back-channel logout devient
   accès extérieur, placez un reverse proxy HTTPS de l'hôte devant (Caddy,
   comme pour le serveur OAuth) et mettez `APP_URL` en `https://…` : le cookie
   devient `Secure` et HSTS est envoyé.
-- **Secrets** : le secret client et la clé publique sont des secrets Compose
-  (fichiers en lecture seule sous `/run/secrets`), absents des variables
-  d'environnement et de `docker inspect`. `secrets/` et `.env.docker` sont ignorés par git.
+- **Secrets** : `.env` (droits 600, ignoré par git) contient le secret client ;
+  dans le conteneur, c'est une variable d'environnement, visible par
+  `docker inspect` (donc par qui contrôle Docker, déjà équivalent à root sur
+  l'hôte). La clé publique est montée en lecture seule sous `/run/secrets`.
 - **Conteneur** : système de fichiers en lecture seule (sauf le volume `/data`
   et un `/tmp` limité en tmpfs), toutes les capabilities retirées,
   `no-new-privileges`, limites de mémoire, CPU et nombre de processus,
