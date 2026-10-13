@@ -1,0 +1,25 @@
+# Ajout pour le DÉVELOPPEMENT uniquement, chargé par la ligne du .env de dev :
+#   COMPOSE_FILE=compose.yaml:compose.dev.yaml
+# Le .env de prod n'a pas cette ligne : ce fichier n'y est jamais lu.
+#
+# En dev, le serveur OAuth tourne en Docker sur la même machine, à http://localhost:8080.
+# Dans un conteneur, « localhost » est le conteneur lui-même : yt-dl rejoint donc le
+# réseau Docker du serveur OAuth de dev pour les échanges serveur à serveur.
+# En prod, rien de tout ça : les deux se joignent par leurs URL publiques.
+services:
+  yt-dl:
+    environment:
+      # /token et /api/userinfo par le réseau partagé (le navigateur garde OAUTH_SERVER_URL)
+      OAUTH_INTERNAL_URL: http://php:8080
+    networks:
+      default:
+      oauth:
+        # Back-channel logout déclaré dans le client OAuth de dev :
+        #   http://yt-dl:8765/auth/backchannel-logout
+        aliases: [yt-dl]
+
+networks:
+  oauth:
+    # Réseau du serveur OAuth de dev (<dossier du serveur>_default)
+    name: ${OAUTH_DEV_NETWORK:-oauth-serveur_default}
+    external: true
