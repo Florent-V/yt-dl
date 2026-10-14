@@ -14,12 +14,12 @@ une autre : les deux ne se parlent que par leurs URL publiques en HTTPS. À fair
 
 ## Prérequis
 
-- [ ] Le serveur OAuth tourne en production et répond sur `https://oauth.mondomaine.fr`
-- [ ] Depuis la machine de yt-dl, il est joignable :
+- [x] Le serveur OAuth tourne en production et répond sur `https://oauth.mondomaine.fr`
+- [x] Depuis la machine de yt-dl, il est joignable :
       `curl -sI https://oauth.mondomaine.fr/login | head -1` → `HTTP/2 200`
-- [ ] Caddy est installé sur la machine de yt-dl
-- [ ] `git`, `make` et Docker (avec le plugin `compose`) sont installés
-- [ ] Mon utilisateur est dans le groupe `docker` (`groups`), sinon :
+- [x] Caddy est installé sur la machine de yt-dl
+- [x] `git`, `make` et Docker (avec le plugin `compose`) sont installés
+- [x] Mon utilisateur est dans le groupe `docker` (`groups`), sinon :
       `sudo usermod -aG docker $USER` puis se reconnecter
 
 > ⚠️ Toutes les commandes `make` se lancent **sans `sudo`**. L'image reprend l'UID de
@@ -27,8 +27,8 @@ une autre : les deux ne se parlent que par leurs URL publiques en HTTPS. À fair
 
 ## 1. DNS
 
-- [ ] Enregistrement `A` `yt.mondomaine.fr` → IP du serveur (et `AAAA` si IPv6)
-- [ ] Propagation vérifiée : `dig +short yt.mondomaine.fr` renvoie l'IP du serveur
+- [x] Enregistrement `A` `yt.mondomaine.fr` → IP du serveur (et `AAAA` si IPv6)
+- [x] Propagation vérifiée : `dig +short yt.mondomaine.fr` renvoie l'IP du serveur
 
 Sans DNS, Caddy ne pourra pas obtenir le certificat à l'étape 6.
 
@@ -44,8 +44,8 @@ make prod-app name="yt-dl" id=yt-dl url=https://yt.mondomaine.fr
 Cela déclare la redirect URI `https://yt.mondomaine.fr/auth/callback` et l'URI de
 back-channel `https://yt.mondomaine.fr/auth/backchannel-logout`.
 
-- [ ] Application `yt-dl` créée
-- [ ] **Client secret copié** (il est stocké haché, il ne sera plus jamais affiché)
+- [x] Application `yt-dl` créée
+- [x] **Client secret copié** (il est stocké haché, il ne sera plus jamais affiché)
 
 ```bash
 make prod-grant email=toi@mondomaine.fr app=yt-dl
@@ -53,9 +53,9 @@ grep ^DEFAULT_URI .env.docker      # .env.docker du serveur OAuth
 make prod-public-key               # clé publique, à copier à l'étape 4
 ```
 
-- [ ] Accès donné à mon compte
-- [ ] Valeur de `DEFAULT_URI` notée (sera `OAUTH_SERVER_URL`, à l'identique, sans `/` final)
-- [ ] Clé publique copiée (bloc `-----BEGIN PUBLIC KEY-----` … `-----END PUBLIC KEY-----`)
+- [x] Accès donné à mon compte
+- [x] Valeur de `DEFAULT_URI` notée (sera `OAUTH_SERVER_URL`, à l'identique, sans `/` final)
+- [x] Clé publique copiée (bloc `-----BEGIN PUBLIC KEY-----` … `-----END PUBLIC KEY-----`)
 
 ## 3. Récupérer le code
 
@@ -66,7 +66,7 @@ ssh-keygen -t ed25519 -f ~/.ssh/ytdl_deploy -N "" -C "deploy vauban-ytdl"
 cat ~/.ssh/ytdl_deploy.pub
 ```
 
-- [ ] Clé publique ajoutée sur GitHub : dépôt → *Settings → Deploy keys → Add deploy key*,
+- [x] Clé publique ajoutée sur GitHub : dépôt → *Settings → Deploy keys → Add deploy key*,
       **sans** cocher *Allow write access*
 
 ```bash
@@ -77,8 +77,8 @@ cd /var/www/vauban-ytdl
 git config core.sshCommand "ssh -i ~/.ssh/ytdl_deploy"
 ```
 
-- [ ] Dépôt cloné dans `/var/www/vauban-ytdl`
-- [ ] `git pull` fonctionne sans demander de mot de passe
+- [x] Dépôt cloné dans `/var/www/vauban-ytdl`
+- [x] `git pull` fonctionne sans demander de mot de passe
 
 ## 4. Configuration
 
@@ -93,8 +93,8 @@ nano var/oauth-public.pem   # coller la clé publique de l'étape 2
 (Si le serveur OAuth est sur la même machine, `make prod-public-key` écrit ce fichier
 directement depuis `/var/www/vauban`.)
 
-- [ ] `.env` créé
-- [ ] `var/oauth-public.pem` écrit (commence par `-----BEGIN PUBLIC KEY-----`)
+- [x] `.env` créé
+- [x] `var/oauth-public.pem` écrit (commence par `-----BEGIN PUBLIC KEY-----`)
 
 Dans `.env`, renseigner :
 
@@ -105,10 +105,10 @@ OAUTH_CLIENT_ID=yt-dl
 OAUTH_CLIENT_SECRET=<secret de l'étape 2>
 ```
 
-- [ ] `APP_URL` en `https://`, sans `/` final
-- [ ] `OAUTH_SERVER_URL` identique au `DEFAULT_URI` noté à l'étape 2, sans `/` final
-- [ ] `OAUTH_CLIENT_ID=yt-dl` et `OAUTH_CLIENT_SECRET` renseignés
-- [ ] Limites relues (`MAX_ACTIVE_JOBS`, `MAX_FILESIZE`, `MIN_FREE_MB`)
+- [x] `APP_URL` en `https://`, sans `/` final
+- [x] `OAUTH_SERVER_URL` identique au `DEFAULT_URI` noté à l'étape 2, sans `/` final
+- [x] `OAUTH_CLIENT_ID=yt-dl` et `OAUTH_CLIENT_SECRET` renseignés
+- [x] Limites relues (`MAX_ACTIVE_JOBS`, `MAX_FILESIZE`, `MIN_FREE_MB`)
 
 `OAUTH_INTERNAL_URL` reste vide : yt-dl appelle le serveur OAuth à `OAUTH_SERVER_URL`.
 
@@ -121,9 +121,9 @@ make ps        # attendre « healthy » (~15 s)
 make health    # {"status":"ok"}
 ```
 
-- [ ] `make check` affiche « configuration valide »
-- [ ] `make ps` affiche `healthy`
-- [ ] `make health` renvoie `{"status":"ok"}`
+- [x] `make check` affiche « configuration valide »
+- [x] `make ps` affiche `healthy`
+- [x] `make health` renvoie `{"status":"ok"}`
 
 En cas d'échec : `make logs`.
 
@@ -166,9 +166,9 @@ caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 ```
 
-- [ ] `caddy validate` sans erreur
-- [ ] Caddy rechargé
-- [ ] `https://yt.mondomaine.fr/api/health` renvoie `{"status":"ok"}` avec un certificat valide
+- [x] `caddy validate` sans erreur
+- [x] Caddy rechargé
+- [x] `https://yt.mondomaine.fr/api/health` renvoie `{"status":"ok"}` avec un certificat valide
 
 ## 7. Recette
 
