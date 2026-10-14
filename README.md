@@ -99,7 +99,9 @@ du client de dev est `http://host.docker.internal:8765/auth/backchannel-logout`
 `make help` liste toutes les commandes (local et Docker).
 
 Procédures pas à pas : [mise en production](docs/mise-en-production.md),
-[mise à jour](docs/mise-a-jour.md).
+[mise à jour](docs/mise-a-jour.md). Blocage YouTube (« Sign in to confirm
+you're not a bot ») : [cookies](docs/youtube-cookies.md) ou
+[sortie par la Freebox](docs/youtube-freebox.md).
 
 ### Sécurité du déploiement
 

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
+import shutil
+import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 import yt_dlp
 
@@ -27,6 +31,8 @@ ALLOWED_EXTRACTORS = (
 )
 
 Hook = Callable[[dict[str, Any]], None]
+
+log = logging.getLogger(__name__)
 
 
 class InvalidChoices(ValueError):
@@ -152,6 +158,33 @@ def build_opts(
     return opts
 
 
+@contextmanager
+def cookie_options() -> Iterator[dict[str, Any]]:
+    """yt-dlp options for the YouTube account cookies in YTDL_COOKIES_FILE, if any.
+
+    YouTube asks datacenter IPs to sign in; a logged-in cookie file lifts it.
+    yt-dlp rewrites its cookie file on exit and the configured one is
+    read-only in Docker, so each run gets a private temporary copy. The file
+    is read on every run: refreshed cookies apply without a restart.
+    """
+    source = os.environ.get("YTDL_COOKIES_FILE")
+    if not source:
+        yield {}
+        return
+    fd, copy = tempfile.mkstemp(prefix="ytdl-cookies-", suffix=".txt")  # mode 600
+    try:
+        try:
+            with os.fdopen(fd, "wb") as out, open(source, "rb") as src:
+                shutil.copyfileobj(src, out)
+            options = {"cookiefile": copy}
+        except OSError as exc:
+            log.warning("YTDL_COOKIES_FILE unreadable, continuing without: %s", exc)
+            options = {}
+        yield options
+    finally:
+        Path(copy).unlink(missing_ok=True)
+
+
 def run(
     url: str,
     choices: Choices,
@@ -161,7 +194,7 @@ def run(
 ) -> Path:
     """Download into `outdir` and return the finished file."""
     opts = build_opts(choices, outdir, hook, pp_hook)
-    with yt_dlp.YoutubeDL(opts) as ydl:
+    with cookie_options() as cookies, yt_dlp.YoutubeDL({**opts, **cookies}) as ydl:
         ydl.download([url])
 
     files = [p for p in outdir.iterdir() if p.is_file()]

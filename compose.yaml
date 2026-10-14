@@ -20,6 +20,8 @@ services:
       OAUTH_PUBLIC_KEY_FILE: /run/secrets/oauth_public_key
       OAUTH_STATE_DB: /data/oauth_state.sqlite3
       JOBS_DIR: /data/jobs
+      # Cookies YouTube (facultatif, docs/youtube-cookies.md) : vide si absent de .env
+      YTDL_COOKIES_FILE: ${YTDL_COOKIES_FILE:+/run/youtube/cookies.txt}
     secrets:
       - oauth_public_key
     ports:
@@ -28,6 +30,8 @@ services:
       - "${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8765}:8765"
     volumes:
       - ytdl_data:/data          # sessions SQLite + fichiers en cours de téléchargement
+      # Dossier et non fichier : un cookies.txt remplacé (scp) est vu sans redémarrage
+      - ./var/youtube:/run/youtube:ro
     tmpfs:
       - /tmp:size=256m,mode=1777 # caches deno / yt-dlp (le reste du système est en lecture seule)
     read_only: true

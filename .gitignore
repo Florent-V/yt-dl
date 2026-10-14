@@ -8,3 +8,4 @@ var/
 .env.docker
 secrets/
 .idea/
+youtube-cookies.txt

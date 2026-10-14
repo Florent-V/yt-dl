@@ -79,8 +79,9 @@ sur des vidéos qui fonctionnaient.
 - [ ] CI verte, puis procédure de mise à jour ci-dessus
 
 « Sign in to confirm you're not a bot » : l'IP du serveur est filtrée par YouTube. Une
-mise à jour de yt-dlp aide parfois ; sinon il faudra fournir des cookies d'un compte YouTube
-(non prévu par l'appli à ce jour).
+mise à jour de yt-dlp aide parfois ; sinon, deux solutions :
+[cookies d'un compte jetable](youtube-cookies.md) ou
+[sortie par la Freebox](youtube-freebox.md).
 
 ### Changement du secret OAuth ou de la clé du serveur OAuth
 

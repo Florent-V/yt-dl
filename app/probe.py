@@ -6,7 +6,7 @@ from typing import Any
 
 import yt_dlp
 
-from app.downloader import ALLOWED_EXTRACTORS
+from app.downloader import ALLOWED_EXTRACTORS, cookie_options
 
 PROBE_OPTS = {
     "allowed_extractors": ALLOWED_EXTRACTORS,
@@ -26,7 +26,10 @@ class ProbeError(Exception):
 def probe(url: str) -> dict[str, Any]:
     """Fetch metadata for a single video without downloading it."""
     try:
-        with yt_dlp.YoutubeDL(PROBE_OPTS) as ydl:
+        with (
+            cookie_options() as cookies,
+            yt_dlp.YoutubeDL({**PROBE_OPTS, **cookies}) as ydl,
+        ):
             info = ydl.extract_info(url, download=False)
     except yt_dlp.utils.DownloadError as exc:
         raise ProbeError(_clean(str(exc))) from exc
