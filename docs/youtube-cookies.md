@@ -117,6 +117,17 @@ chargée. Pas de redémarrage du conteneur : le fichier est relu à chaque analy
 (le script l'envoie sous un nom temporaire puis le renomme, yt-dl ne lit jamais un fichier
 incomplet).
 
+À retenir :
+
+- **Ne jamais ouvrir le profil `~/ytdl-cookies-profile` en dehors du script** : YouTube y
+  ferait tourner les cookies et invaliderait ceux du serveur.
+- **Copie à la main** (sans le script) : remettre les droits, sinon le fichier est lisible
+  par tous les utilisateurs du serveur :
+  `chmod 600 var/youtube/cookies.txt && chmod 700 var/youtube`
+- **Compte banni, ou cookies qui expirent trop souvent** : passer à la
+  [sortie par la Freebox](youtube-freebox.md), sans compte Google (documentée, pas encore
+  codée).
+
 Si le script répond « Pas de session YouTube dans ce profil », le compte a été déconnecté :
 relancer et se reconnecter dans la fenêtre Firefox.
 
