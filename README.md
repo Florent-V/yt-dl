@@ -103,7 +103,7 @@ Procédures pas à pas : [mise en production](docs/mise-en-production.md),
 
 ### Sécurité du déploiement
 
-- **Fail closed** : l'image fixe `REQUIRE_AUTH=1`. Sans `OAUTH_SERVER_URL`,
+- **Fail closed** : l'image fixe `REQUIRE_LOGIN=1`. Sans `OAUTH_SERVER_URL`,
   l'application refuse de démarrer au lieu de s'ouvrir sans authentification.
 - **Réseau** : le port n'écoute que sur `127.0.0.1` (`HTTP_BIND`). Pour un
   accès extérieur, placez un reverse proxy HTTPS de l'hôte devant (Caddy,

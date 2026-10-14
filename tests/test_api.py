@@ -196,7 +196,7 @@ def test_auth_required_without_config_refuses_to_start(monkeypatch):
     from app import auth
     from app.main import check_auth
 
-    monkeypatch.setenv("REQUIRE_AUTH", "1")
+    monkeypatch.setenv("REQUIRE_LOGIN", "1")
     monkeypatch.setattr(auth, "CONFIG", None)
     with pytest.raises(RuntimeError):
         check_auth()

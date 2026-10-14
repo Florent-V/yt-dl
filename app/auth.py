@@ -87,8 +87,8 @@ def _secret(name: str) -> str:
 
 
 def auth_required() -> bool:
-    """REQUIRE_AUTH=1 forbids running without the SSO server (fail closed)."""
-    return os.environ.get("REQUIRE_AUTH", "").lower() in ("1", "true", "yes")
+    """REQUIRE_LOGIN=1 forbids running without the SSO server (fail closed)."""
+    return os.environ.get("REQUIRE_LOGIN", "").lower() in ("1", "true", "yes")
 
 
 CONFIG = load_config()
