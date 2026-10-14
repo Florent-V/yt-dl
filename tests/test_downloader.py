@@ -6,6 +6,7 @@ from app.downloader import (
     Choices,
     InvalidChoices,
     build_opts,
+    cookie_options,
     default_container,
     validate,
 )
@@ -142,3 +143,29 @@ def test_validate_rejects_injected_values(field, value):
 def test_generic_extractor_is_disabled():
     opts = build_opts(Choices(mode="audio"), Path("/tmp/x"))
     assert "-generic" in opts["allowed_extractors"]
+
+
+def test_no_cookies_by_default(monkeypatch):
+    monkeypatch.delenv("YTDL_COOKIES_FILE", raising=False)
+    with cookie_options() as opts:
+        assert opts == {}
+
+
+def test_cookies_are_a_private_copy_removed_afterwards(monkeypatch, tmp_path):
+    source = tmp_path / "cookies.txt"
+    source.write_text("# Netscape HTTP Cookie File\n")
+    monkeypatch.setenv("YTDL_COOKIES_FILE", str(source))
+    with cookie_options() as opts:
+        copy = Path(opts["cookiefile"])
+        assert copy != source
+        assert copy.read_text() == source.read_text()
+        assert copy.stat().st_mode & 0o777 == 0o600
+        copy.write_text("rewritten by yt-dlp")
+    assert not copy.exists()
+    assert source.read_text() == "# Netscape HTTP Cookie File\n"
+
+
+def test_missing_cookie_file_runs_without_cookies(monkeypatch, tmp_path):
+    monkeypatch.setenv("YTDL_COOKIES_FILE", str(tmp_path / "absent.txt"))
+    with cookie_options() as opts:
+        assert opts == {}

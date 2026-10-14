@@ -50,7 +50,7 @@ lock-upgrade: ## Met à jour yt-dlp (casse souvent côté YouTube) dans uv.lock
 ## —— Configuration (local et Docker) ——————————————————————————————————————
 init: ## Crée .env depuis .env.example (à compléter ensuite)
 	@test -f .env || { cp .env.example .env && chmod 600 .env && echo "→ .env créé : à compléter"; }
-	@mkdir -p var
+	@mkdir -p var && mkdir -p -m 700 var/youtube
 
 public-key: init ## Récupère la clé publique du serveur OAuth de dev (OAUTH_DIR)
 	@$(MAKE) -s -C $(OAUTH_DIR) public-key > $(PUBLIC_KEY).tmp \
@@ -68,6 +68,8 @@ check: ## Vérifie la configuration Docker (.env, clé publique, compose)
 	@test -f .env || { echo "✗ .env absent : make init"; exit 1; }
 	@grep -Eq '^OAUTH_CLIENT_SECRET=.+' .env || { echo "✗ OAUTH_CLIENT_SECRET vide dans .env"; exit 1; }
 	@test -s $(PUBLIC_KEY) || { echo "✗ $(PUBLIC_KEY) absent : make public-key / make prod-public-key"; exit 1; }
+	@! grep -Eq '^YTDL_COOKIES_FILE=.+' .env || test -s var/youtube/cookies.txt \
+	  || echo "⚠ YTDL_COOKIES_FILE activé mais var/youtube/cookies.txt absent (docs/youtube-cookies.md)"
 	@$(COMPOSE) config --quiet && echo "✓ configuration valide"
 
 ## —— Docker : exploitation ————————————————————————————————————————————————
@@ -75,6 +77,7 @@ build: check ## Construit l'image
 	$(COMPOSE) build --pull
 
 up: check ## Démarre (construit si besoin) en arrière-plan
+	@mkdir -p -m 700 var/youtube   # monté dans le conteneur ; sinon Docker le crée en root
 	$(COMPOSE) up -d --build
 	@echo "→ http://127.0.0.1:$(HTTP_PORT)  (make logs pour suivre)"
 
