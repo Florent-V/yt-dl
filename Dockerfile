@@ -46,7 +46,7 @@ ENV PATH=/opt/venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     # Pas d'authentification = refus de démarrer (fail closed)
-    REQUIRE_AUTH=1 \
+    REQUIRE_LOGIN=1 \
     OAUTH_STATE_DB=/data/oauth_state.sqlite3 \
     JOBS_DIR=/data/jobs \
     # deno (fourni par le paquet PyPI) écrit son cache ici

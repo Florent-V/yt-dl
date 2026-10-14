@@ -129,7 +129,7 @@ En cas d'échec : `make logs`.
 
 | Message | Cause |
 |---|---|
-| `REQUIRE_AUTH is set but OAUTH_SERVER_URL is empty` | `.env` incomplet |
+| `REQUIRE_LOGIN is set but OAUTH_SERVER_URL is empty` | `.env` incomplet |
 | `Permission denied` sur `/run/secrets/…` | `make` lancé avec `sudo`, ou `var/oauth-public.pem` créé par un autre utilisateur |
 | `✗ OAUTH_CLIENT_SECRET vide dans .env` (`make check`) | secret de l'étape 2 non reporté |
 

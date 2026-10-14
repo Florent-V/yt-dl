@@ -49,11 +49,11 @@ jobs:
           push: false
           load: true
           tags: yt-dl:ci
-      - name: Démarrage refusé sans OAuth (REQUIRE_AUTH)
+      - name: Démarrage refusé sans OAuth (REQUIRE_LOGIN)
         run: |
           output=$(docker run --rm yt-dl:ci timeout 20 uvicorn app.main:app --port 8765 2>&1) || true
           echo "$output"
-          grep -q "REQUIRE_AUTH is set but OAUTH_SERVER_URL is empty" <<< "$output" \
+          grep -q "REQUIRE_LOGIN is set but OAUTH_SERVER_URL is empty" <<< "$output" \
             || { echo "::error::le conteneur n'a pas refusé de démarrer sans configuration OAuth"; exit 1; }
       - name: ffmpeg présent dans l'image
         run: docker run --rm --entrypoint ffmpeg yt-dl:ci -version

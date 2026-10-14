@@ -63,9 +63,9 @@ def check_ffmpeg() -> None:
 
 
 def check_auth() -> None:
-    """With REQUIRE_AUTH set, a missing SSO configuration must not open the app."""
+    """With REQUIRE_LOGIN set, a missing SSO configuration must not open the app."""
     if auth.auth_required() and auth.CONFIG is None:
-        raise RuntimeError("REQUIRE_AUTH is set but OAUTH_SERVER_URL is empty.")
+        raise RuntimeError("REQUIRE_LOGIN is set but OAUTH_SERVER_URL is empty.")
 
 
 @asynccontextmanager
