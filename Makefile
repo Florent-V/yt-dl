@@ -18,7 +18,7 @@ PUBLIC_KEY := $(or $(shell sed -n 's/^OAUTH_PUBLIC_KEY_FILE=//p' .env 2>/dev/nul
 
 .DEFAULT_GOAL := help
 .PHONY: help install run test test-network audit lock-upgrade \
-        init public-key prod-public-key check build up down restart logs ps sh health clean
+        init public-key prod-public-key check build up down restart logs ps sh health prod-deploy clean
 
 ## —— Aide ————————————————————————————————————————————————————————————————
 help: ## Affiche cette aide
@@ -98,6 +98,16 @@ sh: ## Shell dans le conteneur
 
 health: ## Interroge /api/health
 	@curl -fsS http://127.0.0.1:$(HTTP_PORT)/api/health && echo
+
+prod-deploy: ## Met à jour la prod : git pull --ff-only, build, up, attend /api/health
+	@echo "→ commit actuel (retour arrière : git checkout <commit> && make up) :"; git log -1 --oneline
+	git pull --ff-only
+	@$(MAKE) --no-print-directory build up
+	@echo "→ attente du démarrage..."
+	@for i in $$(seq 1 30); do \
+	  curl -fsS http://127.0.0.1:$(HTTP_PORT)/api/health >/dev/null 2>&1 && { echo "✓ déployé : $$(git log -1 --oneline)"; exit 0; }; \
+	  sleep 2; \
+	done; echo "✗ /api/health ne répond pas : make logs"; exit 1
 
 clean: ## Arrête et SUPPRIME le volume (sessions, fichiers en cours)
 	$(COMPOSE) down --volumes
