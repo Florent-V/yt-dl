@@ -35,6 +35,9 @@ make ps        # attendre « healthy »
 make health    # {"status":"ok"}
 ```
 
+Raccourci équivalent : `make prod-deploy` (affiche le commit actuel, puis pull, build, up
+et attend `/api/health` jusqu'à 60 s).
+
 - [ ] `git pull --ff-only` sans erreur (sinon : modification locale sur le serveur, à
       examiner avec `git status`, ne jamais forcer)
 - [ ] `make ps` affiche `healthy`
