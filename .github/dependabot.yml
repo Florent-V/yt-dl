@@ -39,11 +39,34 @@ updates:
     commit-message:
       prefix: "chore(deps)"
 
-  # Images de base du Dockerfile (python slim, uv)
+  # Images de base du Dockerfile (python slim, uv), épinglées version exacte + digest.
+  # Python reste en 3.12 : les majeurs/minors de runtime sont décidés à la main.
+  # Dependabot ne gère pas les alertes de sécurité Docker : c'est le scan Trivy
+  # (.github/workflows/image-scan.yml) qui les détecte.
   - package-ecosystem: docker
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
+    open-pull-requests-limit: 3
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+      major:
+        update-types: ["major"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Services des fichiers compose (aucun image: externe aujourd'hui, l'image du
+  # projet est construite localement) : prêt si une image est ajoutée.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
     open-pull-requests-limit: 3
     cooldown:
       default-days: 7

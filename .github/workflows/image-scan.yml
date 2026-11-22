@@ -1,0 +1,46 @@
+# Scan Trivy de l'image Docker : échoue sur HIGH/CRITICAL avec correctif disponible.
+# Exceptions justifiées dans .trivyignore.
+name: Image scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - Dockerfile
+      - .trivyignore
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/image-scan.yml
+  schedule:
+    # Chaque lundi : nouvelles CVE sur l'image déjà épinglée
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trivy:
+    name: Trivy (yt-dl)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build (images de base re-tirées)
+        run: docker build --pull -t yt-dl:scan .
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: yt-dl:scan
+          # Pas de scan de secrets : faux positif sur une clé publique dans yt-dlp (extractor/shahid.py)
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "1"
