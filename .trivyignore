@@ -1,0 +1,3 @@
+# CVE sans correctif disponible en amont, à ignorer APRÈS analyse d'atteignabilité.
+# Format : un ID par ligne, précédé d'un commentaire (raison, version corrigée attendue,
+# à retirer quand corrigé). Vide : aucune exception pour l'instant.

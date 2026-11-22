@@ -3,11 +3,12 @@
 # yt-dl : image de production (un seul process uvicorn, utilisateur non-root).
 #   make build   (ou : docker compose build)
 
-ARG PYTHON_VERSION=3.12
+# --- 0. Base commune, épinglée (version exacte + digest ; Dependabot met les deux à jour)
+FROM python:3.12.16-slim-trixie@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b AS base
 
 # --- 1. Dépendances Python, figées par uv.lock -------------------------------
-FROM ghcr.io/astral-sh/uv:0.13 AS uv
-FROM python:${PYTHON_VERSION}-slim-trixie AS builder
+FROM ghcr.io/astral-sh/uv:0.13.9@sha256:d3b601f0c7b118bc1753febf7c41cc80981df678445e0254284eecf84db79a7d AS uv
+FROM base AS builder
 
 COPY --from=uv /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 \
@@ -22,11 +23,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 
 # --- 2. Image finale ---------------------------------------------------------
-FROM python:${PYTHON_VERSION}-slim-trixie AS runtime
+FROM base AS runtime
 
 # ffmpeg : fusion vidéo/audio, sous-titres, conversion audio
+# zlib1g : CVE-2026-85091 (HIGH) corrigée en 1.3.1-1+deb13u1, absente de l'image
+# de base épinglée. À retirer quand la base l'inclut (le scan Trivy le dira).
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ffmpeg \
+ && apt-get install -y --no-install-recommends --only-upgrade zlib1g \
  && rm -rf /var/lib/apt/lists/*
 
 # Même UID que l'utilisateur de l'hôte (make build le passe) : les secrets
